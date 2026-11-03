@@ -10,8 +10,7 @@ import Navigation from '@libs/Navigation/Navigation';
 import DynamicContactMethodDetailsPage from '@pages/settings/Profile/Contacts/DynamicContactMethodDetailsPage';
 
 import ONYXKEYS from '@src/ONYXKEYS';
-import {DYNAMIC_ROUTES} from '@src/ROUTES';
-import type {Route} from '@src/ROUTES';
+import ROUTES, {DYNAMIC_ROUTES} from '@src/ROUTES';
 
 import {useIsFocused} from '@react-navigation/native';
 import Onyx from 'react-native-onyx';
@@ -71,7 +70,7 @@ function HTMLProviderWrapper({children}: {children: React.ReactNode}) {
 const fakeEmail = 'fake@gmail.com';
 const contactMethodsPath = 'settings/profile/contact-methods';
 const contactDetailsPath = `${contactMethodsPath}/${DYNAMIC_ROUTES.CONTACT_METHOD_DETAILS.getRoute(fakeEmail)}`;
-const testToolsPath = `test-tools?backTo=${encodeURIComponent(contactDetailsPath)}` as Route;
+const testToolsPath = ROUTES.TEST_TOOLS_MODAL.getRoute(contactDetailsPath);
 const mockRoute = {
     params: {
         contactMethod: fakeEmail,
