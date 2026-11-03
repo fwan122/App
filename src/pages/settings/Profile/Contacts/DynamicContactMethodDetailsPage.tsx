@@ -35,6 +35,7 @@ import {
 import {isMobileSafari} from '@libs/Browser';
 import {canUseTouchScreen} from '@libs/DeviceCapabilities';
 import {getEarliestErrorField, getLatestErrorField} from '@libs/ErrorUtils';
+import findAllMatchingDynamicSuffixes from '@libs/Navigation/helpers/dynamicRoutesUtils/findAllMatchingDynamicSuffixes';
 import getPathWithoutDynamicSuffix from '@libs/Navigation/helpers/dynamicRoutesUtils/getPathWithoutDynamicSuffix';
 import Navigation from '@libs/Navigation/Navigation';
 import type {PlatformStackScreenProps} from '@libs/Navigation/PlatformStackNavigation/types';
@@ -130,35 +131,42 @@ function DynamicContactMethodDetailsPage({route}: DynamicContactMethodDetailsPag
         return !isRestrictedDefaultContactMethodSwitch;
     }, [isDefaultContactMethod, loginData?.validatedDate, isRestrictedDefaultContactMethodSwitch]);
 
-    const prevValidatedDate = usePrevious(loginData?.validatedDate);
     const isFocused = useIsFocused();
-    const [shouldNavigateOnFocus, setShouldNavigateOnFocus] = useState(false);
+    const validationNavigationRef = useRef({contactMethod, validatedDate: loginData?.validatedDate, shouldNavigate: false});
 
     useEffect(() => {
-        if (prevValidatedDate || !loginData?.validatedDate) {
+        const validationNavigation = validationNavigationRef.current;
+        if (validationNavigation.contactMethod !== contactMethod) {
+            // A deferred validation must not navigate a different contact method.
+            validationNavigation.contactMethod = contactMethod;
+            validationNavigation.shouldNavigate = false;
+        } else if (!validationNavigation.validatedDate && loginData?.validatedDate) {
+            validationNavigation.shouldNavigate = true;
+        }
+        validationNavigation.validatedDate = loginData?.validatedDate;
+
+        if (!isFocused || !validationNavigation.shouldNavigate) {
             return;
         }
 
-        if (isFocused) {
-            // Navigate to methods page on successful validateCode verification.
-            // The validatedDate property indicates successful validateCode verification.
-            Navigation.goBack(listPath);
-        } else {
-            // Set flag to navigate when screen regains focus
-            setShouldNavigateOnFocus(true);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- Omitting `isFocused` since we don't want this effect to on focus transitions
-    }, [prevValidatedDate, loginData?.validatedDate, isDefaultContactMethod, listPath]);
-
-    // Handle navigation when screen regains focus and flag is set
-    useEffect(() => {
-        if (!isFocused || !shouldNavigateOnFocus) {
+        // Focus can update before useDynamicBackPath catches up after a covering screen closes.
+        // Resolve the destination from the live route, and keep the request pending until it matches this page.
+        const detailsMatch = findAllMatchingDynamicSuffixes(Navigation.getActiveRoute()).find(
+            (match) => match.pattern === DYNAMIC_ROUTES.CONTACT_METHOD_DETAILS.path && addSMSDomainIfPhoneNumber(match.pathParams.contactMethod ?? '') === contactMethod,
+        );
+        if (!detailsMatch) {
             return;
         }
-        setShouldNavigateOnFocus(false);
-        Navigation.goBack(listPath);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- Only fire on focus transitions
-    }, [isFocused]);
+
+        const contactMethodsPath = getPathWithoutDynamicSuffix(detailsMatch.pathUsedForMatching, detailsMatch.actualSuffix, detailsMatch.pattern);
+        if (!contactMethodsPath) {
+            return;
+        }
+
+        // Consume the request before navigation so later focus and path updates cannot navigate twice.
+        validationNavigation.shouldNavigate = false;
+        Navigation.goBack(contactMethodsPath);
+    }, [contactMethod, loginData?.validatedDate, isFocused, listPath]);
 
     useEffect(() => {
         setIsValidateCodeFormVisible(!loginData?.validatedDate);
